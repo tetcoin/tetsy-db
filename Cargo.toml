@@ -1,11 +1,11 @@
 [package]
-name = "parity-db"
+name = "tetsy-db"
 version = "0.2.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
-homepage = "https://substrate.dev"
-repository = "https://github.com/paritytech/parity-db/"
+homepage = "https://github.com/tetcoin/tetsy-db"
+repository = "https://github.com/tetcoin/tetsy-db/"
 description = "Key-value database for the blockchain"
 
 [dependencies]

@@ -1,18 +1,18 @@
 // Copyright 2015-2020 Parity Technologies (UK) Ltd.
-// This file is part of Parity.
+// This file is part of Tetsy.
 
-// Parity is free software: you can redistribute it and/or modify
+// Tetsy is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Parity is distributed in the hope that it will be useful,
+// Tetsy is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Parity.  If not, see <http://www.gnu.org/licenses/>.
+// along with Tetsy.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::collections::HashMap;
 use std::io::{Read, Write, Seek};
@@ -157,7 +157,7 @@ impl<'a> LogReader<'a> {
 				if self.validate {
 					let checksum = u32::from_le_bytes(buf[0..4].try_into().unwrap());
 					let expected = std::mem::take(&mut self.crc32).finalize();
-					log::trace!(target: "parity-db",
+					log::trace!(target: "tetsy-db",
 						"Read end of record, checksum={:#x}, expected={:#x}",
 						checksum,
 						expected,
@@ -166,7 +166,7 @@ impl<'a> LogReader<'a> {
 						return Err(Error::Corruption("Log record CRC-32 mismatch".into()))
 					}
 				} else {
-					log::trace!(target: "parity-db", "Read end of record");
+					log::trace!(target: "tetsy-db", "Read end of record");
 				}
 				Ok(LogAction::EndRecord)
 			},
@@ -249,7 +249,7 @@ impl LogChange {
 			}
 		}
 		for id in self.dropped_tables.iter() {
-			log::debug!(target: "parity-db", "Finalizing drop {}", id);
+			log::debug!(target: "tetsy-db", "Finalizing drop {}", id);
 			write(&5u8.to_le_bytes().as_ref())?;
 			write(&id.as_u16().to_le_bytes())?;
 		}
@@ -374,7 +374,7 @@ impl Log {
 
 		let mut ids = [(id0.unwrap_or(0), Some(file0)), (id1.unwrap_or(0), Some(file1)), (id2.unwrap_or(0), Some(file2))];
 		ids.sort_by_key(|(id, _)|*id);
-		log::debug!(target: "parity-db", "Opened logs ({} {} {})", ids[0].0, ids[1].0, ids[2].0);
+		log::debug!(target: "tetsy-db", "Opened logs ({} {} {})", ids[0].0, ids[1].0, ids[2].0);
 		let reading = ids[0].1.take().unwrap();
 		let flushing = ids[1].1.take().unwrap();
 		let mut appending = ids[2].1.take().unwrap();
@@ -409,7 +409,7 @@ impl Log {
 		file.read_exact(&mut buf)?;
 		file.seek(std::io::SeekFrom::Start(0))?;
 		let id = u64::from_le_bytes(buf[1..].try_into().unwrap());
-		log::debug!(target: "parity-db", "Opened existing log {}, first record_id = {}", path.display(), id);
+		log::debug!(target: "tetsy-db", "Opened existing log {}, first record_id = {}", path.display(), id);
 
 		Ok((file, Some(id)))
 	}
@@ -466,7 +466,7 @@ impl Log {
 			overlays.value.entry(id).or_default().map.extend(overlay.map.into_iter());
 		}
 		log::debug!(
-			target: "parity-db",
+			target: "tetsy-db",
 			"Finalizing log record {} ({} index, {} value)",
 			record_id,
 			total_index,
@@ -518,7 +518,7 @@ impl Log {
 			let mut reading_state = self.reading_state.lock();
 
 			while *reading_state == ReadingState::Reading  {
-				log::debug!(target: "parity-db", "Flush: Awaiting log reader");
+				log::debug!(target: "tetsy-db", "Flush: Awaiting log reader");
 				self.done_reading_cv.wait(&mut reading_state)
 			}
 			if *reading_state == ReadingState::Shutdown {
@@ -526,7 +526,7 @@ impl Log {
 			}
 
 			{
-				log::debug!(target: "parity-db", "Flush: Activated log reader");
+				log::debug!(target: "tetsy-db", "Flush: Activated log reader");
 				let mut reading = self.reading.write();
 				std::mem::swap(reading.get_mut(), &mut flushing.file);
 				reading.seek(std::io::SeekFrom::Start(0))?;
@@ -546,18 +546,18 @@ impl Log {
 			if !appending.empty {
 				std::mem::swap(appending.file.get_mut(), &mut flushing.file);
 				flush = true;
-				log::debug!(target: "parity-db", "Flush: Activated log writer");
+				log::debug!(target: "tetsy-db", "Flush: Activated log writer");
 				appending.empty = true;
 			}
 		}
 
 		if flush {
 			// Flush to disk
-			log::debug!(target: "parity-db", "Flush: Flushing to disk");
+			log::debug!(target: "tetsy-db", "Flush: Flushing to disk");
 			if self.sync {
 				flushing.file.sync_data()?;
 			}
-			log::debug!(target: "parity-db", "Flush: Flushing completed");
+			log::debug!(target: "tetsy-db", "Flush: Flushing completed");
 			flushing.empty = false;
 		}
 
@@ -567,7 +567,7 @@ impl Log {
 	pub fn read_next<'a>(&'a self, validate: bool) -> Result<Option<LogReader<'a>>> {
 		let mut reading_state = self.reading_state.lock();
 		if *reading_state != ReadingState::Reading {
-			log::trace!(target: "parity-db", "No logs to enact");
+			log::trace!(target: "tetsy-db", "No logs to enact");
 			return Ok(None);
 		}
 
@@ -581,7 +581,7 @@ impl Log {
 			Err(Error::Io(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
 				*reading_state = ReadingState::Idle;
 				self.done_reading_cv.notify_one();
-				log::debug!(target: "parity-db", "Read: End of log");
+				log::debug!(target: "tetsy-db", "Read: End of log");
 				return Ok(None);
 			}
 			Err(e) => return Err(e),

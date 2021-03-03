@@ -1,18 +1,18 @@
 // Copyright 2015-2020 Parity Technologies (UK) Ltd.
-// This file is part of Parity.
+// This file is part of Tetsy.
 
-// Parity is free software: you can redistribute it and/or modify
+// Tetsy is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Parity is distributed in the hope that it will be useful,
+// Tetsy is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Parity.  If not, see <http://www.gnu.org/licenses/>.
+// along with Tetsy.  If not, see <http://www.gnu.org/licenses/>.
 
 // On disk data layout for value tables.
 //
@@ -165,7 +165,7 @@ impl ValueTable {
 		if filled == 0 {
 			filled = 1;
 		}
-		log::debug!(target: "parity-db", "Opened value table {} with {} entries", id, filled);
+		log::debug!(target: "tetsy-db", "Opened value table {} with {} entries", id, filled);
 		Ok(ValueTable {
 			id,
 			entry_size,
@@ -225,7 +225,7 @@ impl ValueTable {
 				&buf
 			} else {
 				log::trace!(
-					target: "parity-db",
+					target: "tetsy-db",
 					"{}: Query slot {}",
 					self.id,
 					index,
@@ -249,7 +249,7 @@ impl ValueTable {
 			if part == 0 {
 				if key[6..] != buf[content_offset + 4..content_offset + 30] {
 					log::debug!(
-						target: "parity-db",
+						target: "tetsy-db",
 						"{}: Key mismatch at {}. Expected {}, got {}",
 						self.id,
 						index,
@@ -348,7 +348,7 @@ impl ValueTable {
 		let index = if last_removed != 0 {
 			let next_removed = self.read_next_free(last_removed, log)?;
 			log::trace!(
-				target: "parity-db",
+				target: "tetsy-db",
 				"{}: Inserting into removed slot {}",
 				self.id,
 				last_removed,
@@ -357,7 +357,7 @@ impl ValueTable {
 			last_removed
 		} else {
 			log::trace!(
-				target: "parity-db",
+				target: "tetsy-db",
 				"{}: Inserting into new slot {}",
 				self.id,
 				filled,
@@ -396,7 +396,7 @@ impl ValueTable {
 				}
 			}
 			log::trace!(
-				target: "parity-db",
+				target: "tetsy-db",
 				"{}: Writing slot {}: {}",
 				self.id,
 				index,
@@ -458,7 +458,7 @@ impl ValueTable {
 	fn clear_slot(&self, index: u64, log: &mut LogWriter) -> Result<()> {
 		let last_removed = self.last_removed.load(Ordering::Relaxed);
 		log::trace!(
-			target: "parity-db",
+			target: "tetsy-db",
 			"{}: Freeing slot {}",
 			self.id,
 			index,
@@ -551,18 +551,18 @@ impl ValueTable {
 		if &buf[0..2] == TOMBSTONE {
 			log.read(&mut buf[2..10])?;
 			self.write_at(&buf[0..10], index * (self.entry_size as u64))?;
-			log::trace!(target: "parity-db", "{}: Enacted tombstone in slot {}", self.id, index);
+			log::trace!(target: "tetsy-db", "{}: Enacted tombstone in slot {}", self.id, index);
 		}
 		else if &buf[0..2] == MULTIPART {
 				let entry_size = self.entry_size as usize;
 				log.read(&mut buf[2..entry_size])?;
 				self.write_at(&buf[0..entry_size], index * (entry_size as u64))?;
-				log::trace!(target: "parity-db", "{}: Enacted multipart in slot {}", self.id, index);
+				log::trace!(target: "tetsy-db", "{}: Enacted multipart in slot {}", self.id, index);
 		} else {
 			let len: u16 = u16::from_le_bytes(buf[0..2].try_into().unwrap());
 			log.read(&mut buf[2..2+len as usize])?;
 			self.write_at(&buf[0..(2 + len as usize)], index * (self.entry_size as u64))?;
-			log::trace!(target: "parity-db", "{}: Enacted {}: {}, {} bytes", self.id, index, hex(&buf[6..32]), len);
+			log::trace!(target: "tetsy-db", "{}: Enacted {}: {}, {} bytes", self.id, index, hex(&buf[6..32]), len);
 		}
 		Ok(())
 	}
@@ -578,17 +578,17 @@ impl ValueTable {
 		log.read(&mut buf[0..2])?;
 		if &buf[0..2] == TOMBSTONE {
 			log.read(&mut buf[2..10])?;
-			log::trace!(target: "parity-db", "{}: Validated tombstone in slot {}", self.id, index);
+			log::trace!(target: "tetsy-db", "{}: Validated tombstone in slot {}", self.id, index);
 		}
 		else if &buf[0..2] == MULTIPART {
 			let entry_size = self.entry_size as usize;
 			log.read(&mut buf[2..entry_size])?;
-			log::trace!(target: "parity-db", "{}: Validated multipart in slot {}", self.id, index);
+			log::trace!(target: "tetsy-db", "{}: Validated multipart in slot {}", self.id, index);
 		} else {
 			// TODO: check len
 			let len: u16 = u16::from_le_bytes(buf[0..2].try_into().unwrap());
 			log.read(&mut buf[2..2+len as usize])?;
-			log::trace!(target: "parity-db", "{}: Validated {}: {}, {} bytes", self.id, index, hex(&buf[2..32]), len);
+			log::trace!(target: "tetsy-db", "{}: Validated {}: {}, {} bytes", self.id, index, hex(&buf[2..32]), len);
 		}
 		Ok(())
 	}
@@ -632,7 +632,7 @@ mod test {
 		fn new(name: &'static str) -> TempDir {
 			env_logger::try_init().ok();
 			let mut path = std::env::temp_dir();
-			path.push("parity-db-test");
+			path.push("tetsy-db-test");
 			path.push("value-table");
 			path.push(name);
 

@@ -1,18 +1,18 @@
 // Copyright 2015-2020 Parity Technologies (UK) Ltd.
-// This file is part of Parity.
+// This file is part of Tetsy.
 
-// Parity is free software: you can redistribute it and/or modify
+// Tetsy is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Parity is distributed in the hope that it will be useful,
+// Tetsy is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Parity.  If not, see <http://www.gnu.org/licenses/>.
+// along with Tetsy.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::convert::TryInto;
 use parking_lot::{RwLockUpgradableReadGuard, RwLock};
@@ -195,7 +195,7 @@ impl IndexTable {
 
 		file.set_len(file_size(id.index_bits()))?;
 		let map = unsafe { memmap2::MmapMut::map_mut(&file)? };
-		log::debug!(target: "parity-db", "Opened existing index {}", id);
+		log::debug!(target: "tetsy-db", "Opened existing index {}", id);
 		Ok(Some(IndexTable {
 			id,
 			path,
@@ -245,19 +245,19 @@ impl IndexTable {
 	}
 
 	pub fn get<Q: LogQuery>(&self, key: &Key, sub_index: usize, log: &Q) -> (Entry, usize) {
-		log::trace!(target: "parity-db", "{}: Querying {}", self.id, hex(&key));
+		log::trace!(target: "tetsy-db", "{}: Querying {}", self.id, hex(&key));
 		let key = u64::from_be_bytes((key[0..8]).try_into().unwrap());
 		let chunk_index = key >> (64 - self.id.index_bits());
 
 		if let Some(entry) = log.with_index(self.id, chunk_index, |chunk| {
-				log::trace!(target: "parity-db", "{}: Querying overlay at {}", self.id, chunk_index);
+				log::trace!(target: "tetsy-db", "{}: Querying overlay at {}", self.id, chunk_index);
 				self.find_entry(key, sub_index, chunk)
 			}) {
 			return entry;
 		}
 
 		if let Some(map) = &*self.map.read() {
-			log::trace!(target: "parity-db", "{}: Querying chunk at {}", self.id, chunk_index);
+			log::trace!(target: "tetsy-db", "{}: Querying chunk at {}", self.id, chunk_index);
 			let chunk = Self::chunk_at(chunk_index, map);
 			return self.find_entry(key, sub_index, chunk);
 
@@ -290,7 +290,7 @@ impl IndexTable {
 		let chunk_index = key >> (64 - self.id.index_bits());
 		if address.as_u64() >= (1 << Entry::address_bits(self.id.index_bits())) {
 			// Address overflow
-			log::warn!(target: "parity-db", "{}: Address space overflow at {}: {}", self.id, chunk_index, address);
+			log::warn!(target: "tetsy-db", "{}: Address space overflow at {}: {}", self.id, chunk_index, address);
 			return Ok(PlanOutcome::NeedReindex);
 		}
 		let mut chunk = [0; CHUNK_LEN];
@@ -301,7 +301,7 @@ impl IndexTable {
 			let entry = Entry::from_u64(u64::from_le_bytes(chunk[i * 8 .. i * 8 + 8].try_into().unwrap()));
 			assert!(entry.key_material(self.id.index_bits()) == new_entry.key_material(self.id.index_bits()));
 			&mut chunk[i * 8 .. i * 8 + 8].copy_from_slice(&new_entry.as_u64().to_le_bytes());
-			log::trace!(target: "parity-db", "{}: Replaced at {}.{}: {}", self.id, chunk_index, i, new_entry.address(self.id.index_bits()));
+			log::trace!(target: "tetsy-db", "{}: Replaced at {}.{}: {}", self.id, chunk_index, i, new_entry.address(self.id.index_bits()));
 			log.insert_index(self.id, chunk_index, &chunk);
 			return Ok(PlanOutcome::Written);
 		}
@@ -309,17 +309,17 @@ impl IndexTable {
 			let entry = Entry::from_u64(u64::from_le_bytes(chunk[i * 8 .. i * 8 + 8].try_into().unwrap()));
 			if entry.is_empty() {
 				&mut chunk[i * 8 .. i * 8 + 8].copy_from_slice(&new_entry.as_u64().to_le_bytes());
-				log::trace!(target: "parity-db", "{}: Inserted at {}.{}: {}", self.id, chunk_index, i, new_entry.address(self.id.index_bits()));
+				log::trace!(target: "tetsy-db", "{}: Inserted at {}.{}: {}", self.id, chunk_index, i, new_entry.address(self.id.index_bits()));
 				log.insert_index(self.id, chunk_index, &chunk);
 				return Ok(PlanOutcome::Written);
 			}
 		}
-		log::trace!(target: "parity-db", "{}: Full at {}", self.id, chunk_index);
+		log::trace!(target: "tetsy-db", "{}: Full at {}", self.id, chunk_index);
 		return Ok(PlanOutcome::NeedReindex);
 	}
 
 	pub fn write_insert_plan(&self, key: &Key, address: Address, sub_index: Option<usize>, log: &mut LogWriter) -> Result<PlanOutcome> {
-		log::trace!(target: "parity-db", "{}: Inserting {} -> {}", self.id, hex(&key), address);
+		log::trace!(target: "tetsy-db", "{}: Inserting {} -> {}", self.id, hex(&key), address);
 		let key = u64::from_be_bytes((key[0..8]).try_into().unwrap());
 		let chunk_index = key >> (64 - self.id.index_bits());
 
@@ -348,14 +348,14 @@ impl IndexTable {
 			let new_entry = Entry::empty();
 			&mut chunk[i * 8 .. i * 8 + 8].copy_from_slice(&new_entry.as_u64().to_le_bytes());
 			log.insert_index(self.id, chunk_index, &chunk);
-			log::trace!(target: "parity-db", "{}: Removed at {}.{}", self.id, chunk_index, i);
+			log::trace!(target: "tetsy-db", "{}: Removed at {}.{}", self.id, chunk_index, i);
 			return Ok(PlanOutcome::Written);
 		}
 		Ok(PlanOutcome::Skipped)
 	}
 
 	pub fn write_remove_plan(&self, key: &Key, sub_index: usize, log: &mut LogWriter) -> Result<PlanOutcome> {
-		log::trace!(target: "parity-db", "{}: Removing {}", self.id, hex(&key));
+		log::trace!(target: "tetsy-db", "{}: Removing {}", self.id, hex(&key));
 		let key = u64::from_be_bytes((key[0..8]).try_into().unwrap());
 		let chunk_index = key >> (64 - self.id.index_bits());
 
@@ -376,7 +376,7 @@ impl IndexTable {
 		if map.is_none() {
 			let mut wmap = RwLockUpgradableReadGuard::upgrade(map);
 			let file = std::fs::OpenOptions::new().write(true).read(true).create_new(true).open(self.path.as_path())?;
-			log::debug!(target: "parity-db", "Created new index {}", self.id);
+			log::debug!(target: "tetsy-db", "Created new index {}", self.id);
 			//TODO: check for potential overflows on 32-bit platforms
 			file.set_len(file_size(self.id.index_bits()))?;
 			*wmap = Some(unsafe { memmap2::MmapMut::map_mut(&file)? });
@@ -393,7 +393,7 @@ impl IndexTable {
 			std::slice::from_raw_parts_mut(ptr, CHUNK_LEN)
 		};
 		log.read(&mut chunk)?;
-		log::trace!(target: "parity-db", "{}: Enacted chunk {}", self.id, index);
+		log::trace!(target: "tetsy-db", "{}: Enacted chunk {}", self.id, index);
 		Ok(())
 	}
 
@@ -403,14 +403,14 @@ impl IndexTable {
 		}
 		let mut chunk = [0; CHUNK_LEN];
 		log.read(&mut chunk)?;
-		log::trace!(target: "parity-db", "{}: Validated chunk {}", self.id, index);
+		log::trace!(target: "tetsy-db", "{}: Validated chunk {}", self.id, index);
 		Ok(())
 	}
 
 	pub fn drop_file(self) -> Result<()> {
 		std::mem::drop(self.map);
 		std::fs::remove_file(self.path.as_path())?;
-		log::debug!(target: "parity-db", "{}: Dropped table", self.id);
+		log::debug!(target: "tetsy-db", "{}: Dropped table", self.id);
 		Ok(())
 	}
 }
