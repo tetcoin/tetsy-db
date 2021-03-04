@@ -1,18 +1,18 @@
 // Copyright 2015-2020 Parity Technologies (UK) Ltd.
-// This file is part of Parity.
+// This file is part of Tetsy.
 
-// Parity is free software: you can redistribute it and/or modify
+// Tetsy is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Parity is distributed in the hope that it will be useful,
+// Tetsy is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Parity.  If not, see <http://www.gnu.org/licenses/>.
+// along with Tetsy.  If not, see <http://www.gnu.org/licenses/>.
 
 /// The database objects is split into `Db` and `DbInner`.
 /// `Db` creates shared `DbInner` instance and manages background
@@ -206,7 +206,7 @@ impl DbInner {
 			};
 
 			log::debug!(
-				target: "parity-db",
+				target: "tetsy-db",
 				"Queued commit {}, {} bytes",
 				commit.id,
 				bytes,
@@ -231,7 +231,7 @@ impl DbInner {
 			if let Some(commit) = queue.commits.pop_front() {
 				queue.bytes -= commit.bytes;
 				log::debug!(
-					target: "parity-db",
+					target: "tetsy-db",
 					"Removed {}. Still queued commits {} bytes",
 					commit.bytes,
 					queue.bytes,
@@ -239,7 +239,7 @@ impl DbInner {
 				if queue.bytes <= MAX_COMMIT_QUEUE_BYTES && (queue.bytes + commit.bytes) > MAX_COMMIT_QUEUE_BYTES {
 					// Past the waiting threshold.
 					log::debug!(
-						target: "parity-db",
+						target: "tetsy-db",
 						"Waking up commit queue worker",
 					);
 					self.commit_queue_full_cv.notify_one();
@@ -254,7 +254,7 @@ impl DbInner {
 			let mut reindex = false;
 			let mut writer = self.log.begin_record();
 			log::debug!(
-				target: "parity-db",
+				target: "tetsy-db",
 				"Processing commit {}, record {}, {} bytes",
 				commit.id,
 				writer.record_id(),
@@ -304,7 +304,7 @@ impl DbInner {
 			}
 
 			log::debug!(
-				target: "parity-db",
+				target: "tetsy-db",
 				"Processed commit {} (record {}), {} ops, {} bytes written",
 				commit.id,
 				record_id,
@@ -333,7 +333,7 @@ impl DbInner {
 				let mut next_reindex = false;
 				let mut writer = self.log.begin_record();
 				log::debug!(
-					target: "parity-db",
+					target: "tetsy-db",
 					"Creating reindex record {}",
 					writer.record_id(),
 				);
@@ -353,7 +353,7 @@ impl DbInner {
 				let bytes = self.log.end_record(l)?;
 
 				log::debug!(
-					target: "parity-db",
+					target: "tetsy-db",
 					"Created reindex record {}, {} bytes",
 					record_id,
 					bytes,
@@ -377,7 +377,7 @@ impl DbInner {
 			let reader = match self.log.read_next() {
 				Ok(reader) => reader,
 				Err(Error::Corruption(_)) if validation_mode => {
-					log::info!(target: "parity-db", "Bad log header");
+					log::info!(target: "tetsy-db", "Bad log header");
 					self.log.clear_logs()?;
 					return Ok(false);
 				}
@@ -385,7 +385,7 @@ impl DbInner {
 			};
 			if let Some(mut reader) = reader {
 				log::debug!(
-					target: "parity-db",
+					target: "tetsy-db",
 					"Enacting log {}",
 					reader.record_id(),
 				);
@@ -394,7 +394,7 @@ impl DbInner {
 					loop {
 						match reader.next()? {
 							LogAction::BeginRecord(_) => {
-								log::debug!(target: "parity-db", "Unexpected log header");
+								log::debug!(target: "tetsy-db", "Unexpected log header");
 								std::mem::drop(reader);
 								self.log.clear_logs()?;
 								return Ok(false);
@@ -405,7 +405,7 @@ impl DbInner {
 							LogAction::InsertIndex(insertion) => {
 								let col = insertion.table.col() as usize;
 								if let Err(e) = self.columns[col].validate_plan(LogAction::InsertIndex(insertion), &mut reader) {
-									log::warn!(target: "parity-db", "Eror replaying log: {:?}. Reverting", e);
+									log::warn!(target: "tetsy-db", "Eror replaying log: {:?}. Reverting", e);
 									std::mem::drop(reader);
 									self.log.clear_logs()?;
 									return Ok(false);
@@ -414,7 +414,7 @@ impl DbInner {
 							LogAction::InsertValue(insertion) => {
 								let col = insertion.table.col() as usize;
 								if let Err(e) = self.columns[col].validate_plan(LogAction::InsertValue(insertion), &mut reader) {
-									log::warn!(target: "parity-db", "Eror replaying log: {:?}. Reverting", e);
+									log::warn!(target: "tetsy-db", "Eror replaying log: {:?}. Reverting", e);
 									std::mem::drop(reader);
 									self.log.clear_logs()?;
 									return Ok(false);
@@ -448,7 +448,7 @@ impl DbInner {
 						},
 						LogAction::DropTable(id) => {
 							log::info!(
-								target: "parity-db",
+								target: "tetsy-db",
 								"Dropping index {}",
 								id,
 							);
@@ -459,7 +459,7 @@ impl DbInner {
 					}
 				}
 				log::debug!(
-					target: "parity-db",
+					target: "tetsy-db",
 					"Enacted log record {}, {} bytes",
 					reader.record_id(),
 					reader.read_bytes(),
@@ -483,7 +483,7 @@ impl DbInner {
 					if *queue <= MAX_LOG_QUEUE_BYTES && (*queue + bytes) > MAX_LOG_QUEUE_BYTES {
 						self.log_cv.notify_all();
 					}
-					log::debug!(target: "parity-db", "Log queue size: {} bytes", *queue);
+					log::debug!(target: "tetsy-db", "Log queue size: {} bytes", *queue);
 				}
 			}
 			Ok(true)
@@ -501,7 +501,7 @@ impl DbInner {
 	}
 
 	fn replay_all_logs(&self) -> Result<()> {
-		log::debug!(target: "parity-db", "Replaying database log...");
+		log::debug!(target: "tetsy-db", "Replaying database log...");
 		// Process the oldest log first
 		while self.enact_logs(true)? { }
 		// Process intermediate logs
@@ -514,7 +514,7 @@ impl DbInner {
 		for c in self.columns.iter() {
 			c.refresh_metadata()?;
 		}
-		log::debug!(target: "parity-db", "Done.");
+		log::debug!(target: "tetsy-db", "Done.");
 		Ok(())
 	}
 
@@ -533,14 +533,14 @@ impl DbInner {
 						c.write_stats(&file);
 					}
 				}
-				Err(e) => log::warn!(target: "parity-db", "Error creating stats file: {:?}", e),
+				Err(e) => log::warn!(target: "tetsy-db", "Error creating stats file: {:?}", e),
 			}
 		}
 	}
 
 	fn store_err(&self, result: Result<()>) {
 		if let Err(e) = result {
-			log::warn!(target: "parity-db", "Background worker error: {}", e);
+			log::warn!(target: "tetsy-db", "Background worker error: {}", e);
 			let mut err =  self.bg_err.lock();
 			if err.is_none() {
 				*err = Some(Arc::new(e));
@@ -616,7 +616,7 @@ impl Db {
 
 			more_work = db.enact_logs(false)?;
 		}
-		log::debug!(target: "parity-db", "Commit worker shutdown");
+		log::debug!(target: "tetsy-db", "Commit worker shutdown");
 		Ok(())
 	}
 
@@ -635,7 +635,7 @@ impl Db {
 			let more_reindex = db.process_reindex()?;
 			more_work = more_commits || more_reindex;
 		}
-		log::debug!(target: "parity-db", "Log worker shutdown");
+		log::debug!(target: "tetsy-db", "Log worker shutdown");
 		Ok(())
 	}
 
@@ -651,7 +651,7 @@ impl Db {
 			}
 			more_work = db.flush_logs()?;
 		}
-		log::debug!(target: "parity-db", "Flush worker shutdown");
+		log::debug!(target: "tetsy-db", "Flush worker shutdown");
 		Ok(())
 	}
 }

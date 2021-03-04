@@ -1,18 +1,18 @@
 // Copyright 2015-2020 Parity Technologies (UK) Ltd.
-// This file is part of Parity.
+// This file is part of Tetsy.
 
-// Parity is free software: you can redistribute it and/or modify
+// Tetsy is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Parity is distributed in the hope that it will be useful,
+// Tetsy is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Parity.  If not, see <http://www.gnu.org/licenses/>.
+// along with Tetsy.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -142,7 +142,7 @@ impl Column {
 			k.copy_from_slice(&key[0..32]);
 		} else {
 			k.copy_from_slice(blake2_rfc::blake2b::blake2b(32, &[], key).as_bytes());
-			//log::trace!(target: "parity-db", "HASH({})={}", hex(key), hex(&k));
+			//log::trace!(target: "tetsy-db", "HASH({})={}", hex(key), hex(&k));
 		}
 		k
 	}
@@ -182,7 +182,7 @@ impl Column {
 		let mut tables = parking_lot::RwLockUpgradableReadGuard::upgrade(tables);
 		let mut reindex = parking_lot::RwLockUpgradableReadGuard::upgrade(reindex);
 		log::info!(
-			target: "parity-db",
+			target: "tetsy-db",
 			"Started reindex for {}",
 			tables.index.id,
 		);
@@ -204,7 +204,7 @@ impl Column {
 		}
 		match tables.index.write_insert_plan(key, address, None, log)? {
 			PlanOutcome::NeedReindex => {
-				log::debug!(target: "parity-db", "{}: Index chunk full {}", tables.index.id, hex(key));
+				log::debug!(target: "tetsy-db", "{}: Index chunk full {}", tables.index.id, hex(key));
 				Self::trigger_reindex(tables, reindex, self.path.as_path());
 				self.write_index_plan(key, address, log)?;
 				return Ok(PlanOutcome::NeedReindex);
@@ -265,7 +265,7 @@ impl Column {
 			let target_tier = match target_tier {
 				Some(tier) => tier as usize,
 				None => {
-					log::trace!(target: "parity-db", "Inserted blob {}", hex(key));
+					log::trace!(target: "tetsy-db", "Inserted blob {}", hex(key));
 					15
 				}
 			};
@@ -277,7 +277,7 @@ impl Column {
 					self.stats.replace_val(cur_size, val.len() as u32);
 				}
 				if self.ref_counted {
-					log::trace!(target: "parity-db", "{}: Increment ref {}", tables.index.id, hex(key));
+					log::trace!(target: "tetsy-db", "{}: Increment ref {}", tables.index.id, hex(key));
 					tables.value[target_tier].write_inc_ref(existing_address.offset(), log)?;
 					return Ok(PlanOutcome::Written);
 				}
@@ -286,11 +286,11 @@ impl Column {
 					return Ok(PlanOutcome::Skipped);
 				}
 				if existing_tier == target_tier {
-					log::trace!(target: "parity-db", "{}: Replacing {}", tables.index.id, hex(key));
+					log::trace!(target: "tetsy-db", "{}: Replacing {}", tables.index.id, hex(key));
 					tables.value[target_tier].write_replace_plan(existing_address.offset(), key, val, log)?;
 					return Ok(PlanOutcome::Written);
 				} else {
-					log::trace!(target: "parity-db", "{}: Replacing in a new table {}", tables.index.id, hex(key));
+					log::trace!(target: "tetsy-db", "{}: Replacing in a new table {}", tables.index.id, hex(key));
 					tables.value[existing_tier].write_remove_plan(existing_address.offset(), log)?;
 					let new_offset = tables.value[target_tier].write_insert_plan(key, val, log)?;
 					let new_address = Address::new(new_offset, target_tier as u8);
@@ -299,12 +299,12 @@ impl Column {
 					return tables.index.write_insert_plan(key, new_address, sub_index, log);
 				}
 			} else {
-				log::trace!(target: "parity-db", "{}: Inserting new index {}", tables.index.id, hex(key));
+				log::trace!(target: "tetsy-db", "{}: Inserting new index {}", tables.index.id, hex(key));
 				let offset = tables.value[target_tier].write_insert_plan(key, val, log)?;
 				let address = Address::new(offset, target_tier as u8);
 				match tables.index.write_insert_plan(key, address, None, log)? {
 					PlanOutcome::NeedReindex => {
-						log::debug!(target: "parity-db", "{}: Index chunk full {}", tables.index.id, hex(key));
+						log::debug!(target: "tetsy-db", "{}: Index chunk full {}", tables.index.id, hex(key));
 						Self::trigger_reindex(tables, reindex, self.path.as_path());
 						self.write_plan(key, value, log)?;
 						return Ok(PlanOutcome::NeedReindex);
@@ -328,10 +328,10 @@ impl Column {
 				};
 				let remove = if self.ref_counted {
 					let removed = !tables.value[existing_tier].write_dec_ref(existing_address.offset(), log)?;
-					log::trace!(target: "parity-db", "{}: Dereference {}, deleted={}", table.id, hex(key), removed);
+					log::trace!(target: "tetsy-db", "{}: Dereference {}, deleted={}", table.id, hex(key), removed);
 					removed
 				} else {
-					log::trace!(target: "parity-db", "{}: Deleting {}", table.id, hex(key));
+					log::trace!(target: "tetsy-db", "{}: Deleting {}", table.id, hex(key));
 					tables.value[existing_tier].write_remove_plan(existing_address.offset(), log)?;
 					true
 				};
@@ -343,7 +343,7 @@ impl Column {
 				}
 				return Ok(PlanOutcome::Written);
 			}
-			log::trace!(target: "parity-db", "{}: Deletion missed {}", tables.index.id, hex(key));
+			log::trace!(target: "tetsy-db", "{}: Deletion missed {}", tables.index.id, hex(key));
 			if self.collect_stats {
 				self.stats.remove_miss();
 			}
@@ -363,7 +363,7 @@ impl Column {
 				}
 				else {
 					log::warn!(
-						target: "parity-db",
+						target: "tetsy-db",
 						"Missing table {}",
 						record.table,
 					);
@@ -437,11 +437,11 @@ impl Column {
 				let mut source_index = progress;
 				let mut count = 0;
 				if source_index % 50 == 0 {
-					log::info!(target: "parity-db", "{}: Reindexing at {}/{}", tables.index.id, source_index, source.id.total_chunks());
+					log::info!(target: "tetsy-db", "{}: Reindexing at {}/{}", tables.index.id, source_index, source.id.total_chunks());
 				}
-				log::debug!(target: "parity-db", "{}: Continue reindex at {}/{}", tables.index.id, source_index, source.id.total_chunks());
+				log::debug!(target: "tetsy-db", "{}: Continue reindex at {}/{}", tables.index.id, source_index, source.id.total_chunks());
 				while source_index < source.id.total_chunks() && count < MAX_REBALANCE_BATCH {
-					log::trace!(target: "parity-db", "{}: Reindexing {}", source.id, source_index);
+					log::trace!(target: "tetsy-db", "{}: Reindexing {}", source.id, source_index);
 					let entries = source.entries(source_index, &*log.overlays());
 					for entry in entries.iter() {
 						if entry.is_empty() {
@@ -455,16 +455,16 @@ impl Column {
 						let mut key = Key::default();
 						// restore 16 high bits
 						&mut key[0..8].copy_from_slice(&index_key.to_be_bytes());
-						log::trace!(target: "parity-db", "{}: Reinserting {}", source.id, hex(&key));
+						log::trace!(target: "tetsy-db", "{}: Reinserting {}", source.id, hex(&key));
 						plan.push((key, entry.address(source.id.index_bits())))
 					}
 					count += 1;
 					source_index += 1;
 				}
-				log::trace!(target: "parity-db", "{}: End reindex batch {} ({})", tables.index.id, source_index, count);
+				log::trace!(target: "tetsy-db", "{}: End reindex batch {} ({})", tables.index.id, source_index, count);
 				reindex.progress.store(source_index, Ordering::Relaxed);
 				if source_index == source.id.total_chunks() {
-					log::info!(target: "parity-db", "Completed reindex into {}", tables.index.id);
+					log::info!(target: "tetsy-db", "Completed reindex into {}", tables.index.id);
 					drop_index = Some(source.id);
 				}
 			}
@@ -473,17 +473,17 @@ impl Column {
 	}
 
 	pub fn drop_index(&self, id: IndexTableId) -> Result<()> {
-		log::debug!(target: "parity-db", "Dropping {}", id);
+		log::debug!(target: "tetsy-db", "Dropping {}", id);
 		let mut reindex = self.reindex.write();
 		if reindex.queue.front_mut().map_or(false, |index| index.id == id) {
 			let table = reindex.queue.pop_front();
 			reindex.progress.store(0, Ordering::Relaxed);
 			table.unwrap().drop_file()?;
 		} else {
-			log::warn!(target: "parity-db", "Dropping invalid index {}", id);
+			log::warn!(target: "tetsy-db", "Dropping invalid index {}", id);
 			return Ok(());
 		}
-		log::debug!(target: "parity-db", "Dropped {}", id);
+		log::debug!(target: "tetsy-db", "Dropped {}", id);
 		Ok(())
 	}
 }
